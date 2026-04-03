@@ -1,0 +1,22 @@
+{
+    "name": "Notatnik",
+    "short_name": "Notatnik",
+    "description": "Notatnik z rozpoznawaniem pisma odręcznego",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#f8f6f0",
+    "theme_color": "#2c3e50",
+    "icons": [
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
