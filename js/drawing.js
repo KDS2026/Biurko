@@ -1,6 +1,6 @@
 /**
- * Drawing engine with Apple Pencil pressure sensitivity support.
- * Uses quadratic Bézier curves for smooth, continuous strokes.
+ * Drawing engine with Apple Pencil support and automatic handwriting beautification.
+ * Smooths strokes in real-time and beautifies on pen lift.
  */
 class DrawingEngine {
     constructor(canvas) {
@@ -8,22 +8,20 @@ class DrawingEngine {
         this.ctx = canvas.getContext('2d', { willReadFrequently: true });
 
         this.isDrawing = false;
-        this.tool = 'pen';        // pen | highlighter | eraser
+        this.tool = 'pen';
         this.color = '#1a1a2e';
         this.lineWidth = 2;
 
-        // Stroke history for undo/redo
         this.strokes = [];
         this.redoStack = [];
         this.currentStroke = null;
 
-        // Current stroke raw points (for handwriting recognition)
         this.currentPoints = [];
         this.allStrokePoints = [];
 
-        // Smoothing: keep track of last points for Bézier
-        this._lastPoint = null;
-        this._lastMidPoint = null;
+        // Real-time smoothing buffer
+        this._pointBuffer = [];
+        this._bufferSize = 8;
         this._smoothedPressure = 0.5;
 
         this._setupCanvas();
@@ -75,13 +73,150 @@ class DrawingEngine {
         };
     }
 
-    _midPoint(a, b) {
-        return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    // ===== Moving average smoothing for real-time drawing =====
+    _getSmoothedPoint(pos) {
+        this._pointBuffer.push(pos);
+        if (this._pointBuffer.length > this._bufferSize) {
+            this._pointBuffer.shift();
+        }
+
+        let sumX = 0, sumY = 0, sumP = 0, totalWeight = 0;
+        const len = this._pointBuffer.length;
+
+        for (let i = 0; i < len; i++) {
+            // More recent points get higher weight
+            const weight = (i + 1) / len;
+            sumX += this._pointBuffer[i].x * weight;
+            sumY += this._pointBuffer[i].y * weight;
+            sumP += this._pointBuffer[i].pressure * weight;
+            totalWeight += weight;
+        }
+
+        return {
+            x: sumX / totalWeight,
+            y: sumY / totalWeight,
+            pressure: sumP / totalWeight
+        };
     }
+
+    // ===== Stroke beautification - runs on pen lift =====
+    _beautifyStroke(points) {
+        if (points.length < 3) return points;
+
+        // Step 1: Resample at even intervals to remove speed artifacts
+        const resampled = this._resamplePoints(points, 4);
+        if (resampled.length < 3) return points;
+
+        // Step 2: Apply Gaussian smoothing (multiple passes for beautiful curves)
+        let smoothed = resampled;
+        for (let pass = 0; pass < 3; pass++) {
+            smoothed = this._gaussianSmooth(smoothed, 5);
+        }
+
+        // Step 3: Smooth pressure values separately
+        smoothed = this._smoothPressure(smoothed);
+
+        return smoothed;
+    }
+
+    _resamplePoints(points, spacing) {
+        if (points.length < 2) return points;
+
+        const result = [points[0]];
+        let accumulated = 0;
+
+        for (let i = 1; i < points.length; i++) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            const dx = curr.x - prev.x;
+            const dy = curr.y - prev.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            accumulated += dist;
+
+            while (accumulated >= spacing) {
+                const ratio = 1 - (accumulated - spacing) / dist;
+                const newPt = {
+                    x: prev.x + dx * ratio,
+                    y: prev.y + dy * ratio,
+                    pressure: prev.pressure + (curr.pressure - prev.pressure) * ratio
+                };
+                result.push(newPt);
+                accumulated -= spacing;
+            }
+        }
+
+        // Always include last point
+        result.push(points[points.length - 1]);
+        return result;
+    }
+
+    _gaussianSmooth(points, windowSize) {
+        const half = Math.floor(windowSize / 2);
+        const result = [];
+
+        // Generate Gaussian kernel
+        const kernel = [];
+        const sigma = half / 2;
+        let kernelSum = 0;
+        for (let i = -half; i <= half; i++) {
+            const w = Math.exp(-(i * i) / (2 * sigma * sigma));
+            kernel.push(w);
+            kernelSum += w;
+        }
+        for (let i = 0; i < kernel.length; i++) kernel[i] /= kernelSum;
+
+        for (let i = 0; i < points.length; i++) {
+            // Keep first and last few points closer to original (anchors)
+            const anchorStrength = Math.min(i, points.length - 1 - i, half) / half;
+
+            let sx = 0, sy = 0, sp = 0;
+
+            for (let j = -half; j <= half; j++) {
+                const idx = Math.max(0, Math.min(points.length - 1, i + j));
+                const w = kernel[j + half];
+                sx += points[idx].x * w;
+                sy += points[idx].y * w;
+                sp += points[idx].pressure * w;
+            }
+
+            result.push({
+                x: points[i].x + (sx - points[i].x) * anchorStrength,
+                y: points[i].y + (sy - points[i].y) * anchorStrength,
+                pressure: sp
+            });
+        }
+
+        return result;
+    }
+
+    _smoothPressure(points) {
+        if (points.length < 3) return points;
+
+        const result = points.map(p => ({ ...p }));
+
+        // Smooth pressure with wider window
+        for (let i = 1; i < result.length - 1; i++) {
+            const window = 3;
+            let sum = 0, count = 0;
+            for (let j = -window; j <= window; j++) {
+                const idx = Math.max(0, Math.min(result.length - 1, i + j));
+                sum += points[idx].pressure;
+                count++;
+            }
+            result[i].pressure = sum / count;
+        }
+
+        return result;
+    }
+
+    // ===== Pointer event handlers =====
 
     _onPointerDown(e) {
         e.preventDefault();
         this.isDrawing = true;
+        this._pointBuffer = [];
+
         const pos = this._getPos(e);
         this._smoothedPressure = pos.pressure;
 
@@ -93,15 +228,7 @@ class DrawingEngine {
         };
 
         this.currentPoints = [{ x: pos.x, y: pos.y, pressure: pos.pressure, time: Date.now() }];
-
-        this._lastPoint = pos;
-        this._lastMidPoint = pos;
-
-        // Draw a dot for single taps
-        this._applyStyle(pos.pressure);
-        this.ctx.beginPath();
-        this.ctx.arc(pos.x, pos.y, this._getWidth(pos.pressure) / 2, 0, Math.PI * 2);
-        this.ctx.fill();
+        this._lastDrawn = pos;
     }
 
     _onPointerMove(e) {
@@ -111,34 +238,25 @@ class DrawingEngine {
         const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
 
         for (const evt of events) {
-            const pos = this._getPos(evt);
+            const rawPos = this._getPos(evt);
 
-            // Smooth the pressure to prevent jitter
-            this._smoothedPressure += (pos.pressure - this._smoothedPressure) * 0.3;
-            const pressure = this._smoothedPressure;
+            // Real-time moving average smoothing
+            const pos = this._getSmoothedPoint(rawPos);
 
-            this.currentStroke.points.push({ x: pos.x, y: pos.y, pressure: pressure });
-            this.currentPoints.push({ x: pos.x, y: pos.y, pressure: pressure, time: Date.now() });
+            this.currentStroke.points.push({ x: pos.x, y: pos.y, pressure: pos.pressure });
+            this.currentPoints.push({ x: rawPos.x, y: rawPos.y, pressure: rawPos.pressure, time: Date.now() });
 
             if (this.tool === 'eraser') {
                 this._erase(pos.x, pos.y);
             } else {
-                // Draw smooth quadratic Bézier curve through midpoints
-                const midPoint = this._midPoint(this._lastPoint, pos);
-
-                this._applyStyle(pressure);
+                // Draw live preview as simple smooth line
+                this._applyStyle(pos.pressure);
                 this.ctx.beginPath();
-                this.ctx.moveTo(this._lastMidPoint.x, this._lastMidPoint.y);
-                this.ctx.quadraticCurveTo(
-                    this._lastPoint.x, this._lastPoint.y,
-                    midPoint.x, midPoint.y
-                );
+                this.ctx.moveTo(this._lastDrawn.x, this._lastDrawn.y);
+                this.ctx.lineTo(pos.x, pos.y);
                 this.ctx.stroke();
-
-                this._lastMidPoint = midPoint;
+                this._lastDrawn = pos;
             }
-
-            this._lastPoint = pos;
         }
     }
 
@@ -146,16 +264,17 @@ class DrawingEngine {
         if (!this.isDrawing) return;
         this.isDrawing = false;
 
-        // Draw final segment to the last point
-        if (this._lastPoint && this._lastMidPoint && this.tool !== 'eraser') {
-            this._applyStyle(this._smoothedPressure);
-            this.ctx.beginPath();
-            this.ctx.moveTo(this._lastMidPoint.x, this._lastMidPoint.y);
-            this.ctx.lineTo(this._lastPoint.x, this._lastPoint.y);
-            this.ctx.stroke();
-        }
+        if (this.currentStroke && this.currentStroke.points.length > 1 && this.tool !== 'eraser') {
+            // Beautify the stroke!
+            this.currentStroke.points = this._beautifyStroke(this.currentStroke.points);
+            this.strokes.push(this.currentStroke);
+            this.redoStack = [];
+            this.allStrokePoints.push([...this.currentPoints]);
 
-        if (this.currentStroke && this.currentStroke.points.length > 0) {
+            // Redraw everything with beautified strokes
+            this._redrawAll();
+        } else if (this.currentStroke && this.currentStroke.points.length === 1) {
+            // Single dot
             this.strokes.push(this.currentStroke);
             this.redoStack = [];
             this.allStrokePoints.push([...this.currentPoints]);
@@ -163,17 +282,18 @@ class DrawingEngine {
 
         this.currentStroke = null;
         this.currentPoints = [];
-        this._lastPoint = null;
-        this._lastMidPoint = null;
+        this._pointBuffer = [];
+        this._lastDrawn = null;
     }
 
-    _getWidth(pressure) {
-        if (this.tool === 'pen') {
-            return this.lineWidth * (0.6 + pressure * 1.2);
-        } else if (this.tool === 'highlighter') {
-            return this.lineWidth * 4;
-        }
-        return this.lineWidth;
+    // ===== Rendering =====
+
+    _getWidth(pressure, tool, baseWidth) {
+        const t = tool || this.tool;
+        const w = baseWidth || this.lineWidth;
+        if (t === 'pen') return w * (0.6 + pressure * 1.2);
+        if (t === 'highlighter') return w * 4;
+        return w;
     }
 
     _applyStyle(pressure) {
@@ -220,7 +340,8 @@ class DrawingEngine {
     }
 
     _drawStroke(stroke) {
-        if (stroke.points.length === 0) return;
+        const pts = stroke.points;
+        if (!pts || pts.length === 0) return;
 
         this.ctx.save();
         this.ctx.lineCap = 'round';
@@ -229,59 +350,58 @@ class DrawingEngine {
         if (stroke.tool === 'pen') {
             this.ctx.globalCompositeOperation = 'source-over';
             this.ctx.strokeStyle = stroke.color;
+            this.ctx.fillStyle = stroke.color;
             this.ctx.globalAlpha = 1;
         } else if (stroke.tool === 'highlighter') {
             this.ctx.globalCompositeOperation = 'multiply';
             this.ctx.strokeStyle = stroke.color;
+            this.ctx.fillStyle = stroke.color;
             this.ctx.globalAlpha = 0.3;
         }
 
-        const pts = stroke.points;
-
         if (pts.length === 1) {
-            this.ctx.fillStyle = stroke.color;
+            const w = this._getWidth(pts[0].pressure, stroke.tool, stroke.lineWidth);
             this.ctx.beginPath();
-            const w = stroke.tool === 'pen'
-                ? stroke.lineWidth * (0.6 + pts[0].pressure * 1.2)
-                : stroke.lineWidth * 4;
             this.ctx.arc(pts[0].x, pts[0].y, w / 2, 0, Math.PI * 2);
             this.ctx.fill();
             this.ctx.restore();
             return;
         }
 
-        // Draw smooth Bézier curves through midpoints
-        let lastMid = pts[0];
-
-        for (let i = 1; i < pts.length; i++) {
-            const curr = pts[i];
-            const prev = pts[i - 1];
-            const mid = { x: (prev.x + curr.x) / 2, y: (prev.y + curr.y) / 2 };
-
-            const pressure = curr.pressure;
-            if (stroke.tool === 'pen') {
-                this.ctx.lineWidth = stroke.lineWidth * (0.6 + pressure * 1.2);
-            } else if (stroke.tool === 'highlighter') {
-                this.ctx.lineWidth = stroke.lineWidth * 4;
-            }
-
-            this.ctx.beginPath();
-            this.ctx.moveTo(lastMid.x, lastMid.y);
-            this.ctx.quadraticCurveTo(prev.x, prev.y, mid.x, mid.y);
-            this.ctx.stroke();
-
-            lastMid = mid;
-        }
-
-        // Final segment
-        const lastPt = pts[pts.length - 1];
-        this.ctx.beginPath();
-        this.ctx.moveTo(lastMid.x, lastMid.y);
-        this.ctx.lineTo(lastPt.x, lastPt.y);
-        this.ctx.stroke();
+        // Draw using Catmull-Rom spline for maximum smoothness
+        this._drawCatmullRom(pts, stroke);
 
         this.ctx.restore();
     }
+
+    _drawCatmullRom(pts, stroke) {
+        // Catmull-Rom spline produces beautiful flowing curves
+        const tension = 0.4;
+
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[Math.max(0, i - 1)];
+            const p1 = pts[i];
+            const p2 = pts[Math.min(pts.length - 1, i + 1)];
+            const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+            // Average pressure for this segment
+            const pressure = (p1.pressure + p2.pressure) / 2;
+            this.ctx.lineWidth = this._getWidth(pressure, stroke.tool, stroke.lineWidth);
+
+            // Calculate control points from Catmull-Rom
+            const cp1x = p1.x + (p2.x - p0.x) * tension / 3;
+            const cp1y = p1.y + (p2.y - p0.y) * tension / 3;
+            const cp2x = p2.x - (p3.x - p1.x) * tension / 3;
+            const cp2y = p2.y - (p3.y - p1.y) * tension / 3;
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(p1.x, p1.y);
+            this.ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            this.ctx.stroke();
+        }
+    }
+
+    // ===== Actions =====
 
     undo() {
         if (this.strokes.length === 0) return;
@@ -298,17 +418,9 @@ class DrawingEngine {
         this._redrawAll();
     }
 
-    setTool(tool) {
-        this.tool = tool;
-    }
-
-    setColor(color) {
-        this.color = color;
-    }
-
-    setLineWidth(width) {
-        this.lineWidth = width;
-    }
+    setTool(tool) { this.tool = tool; }
+    setColor(color) { this.color = color; }
+    setLineWidth(width) { this.lineWidth = width; }
 
     clear() {
         this.strokes = [];
@@ -318,15 +430,10 @@ class DrawingEngine {
         this.ctx.clearRect(0, 0, this.canvas.width / dpr, this.canvas.height / dpr);
     }
 
-    getCanvasDataURL() {
-        return this.canvas.toDataURL('image/png');
-    }
+    getCanvasDataURL() { return this.canvas.toDataURL('image/png'); }
 
     getStrokesData() {
-        return {
-            strokes: this.strokes,
-            strokePoints: this.allStrokePoints
-        };
+        return { strokes: this.strokes, strokePoints: this.allStrokePoints };
     }
 
     loadStrokes(data) {
@@ -337,7 +444,5 @@ class DrawingEngine {
         }
     }
 
-    hasContent() {
-        return this.strokes.length > 0;
-    }
+    hasContent() { return this.strokes.length > 0; }
 }
