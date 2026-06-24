@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7b2d8e">
+<title>MP3 → Nuty (klucz basowy)</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-page:#f5f4f7; --accent:#7b2d8e; --accent-light:#9b4dba; --accent-subtle:#f3eaf6;
+  --text-primary:#2c2637; --text-secondary:#8a8494; --surface:#faf9fc; --danger:#cc0000;
+  --radius:10px; --shadow-md:0 4px 12px rgba(90,50,120,0.10); --shadow-sm:0 1px 3px rgba(90,50,120,0.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 18px 80px}
+header.page{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+header.page .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:var(--shadow-md)}
+header.page h1{font-size:20px;font-weight:600;margin:0}
+header.page p{margin:2px 0 0;font-size:13px;color:var(--text-secondary)}
+.back{margin-left:auto;font-size:13px;color:var(--accent);text-decoration:none;padding:8px 12px;border-radius:8px}
+.back:hover{background:var(--accent-subtle)}
+
+.drop{border:2px dashed #d4c6dd;border-radius:var(--radius);background:var(--surface);padding:34px 20px;text-align:center;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-subtle)}
+.drop .big{font-size:34px;margin-bottom:8px}
+.drop strong{color:var(--accent)}
+.drop small{display:block;margin-top:6px;color:var(--text-secondary)}
+
+.tip{margin:14px 0;padding:12px 14px;background:#eef7ee;border:1px solid #cfe6cf;border-radius:9px;font-size:12.5px;color:#2c5a2c}
+.tip b{color:#1f4d1f}
+
+.controls{display:none;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:18px 0;padding:14px 16px;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.controls.show{display:flex}
+.controls label{font-size:13px;display:flex;align-items:center;gap:6px}
+.controls select,.controls input[type=number]{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:7px;background:#fff}
+.btn{font:inherit;font-size:13px;font-weight:500;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-light)}
+.btn.ghost{background:var(--accent-subtle);color:var(--accent)}
+.btn.ghost:hover{background:#e9d9f0}
+.btn:disabled{opacity:.45;cursor:default}
+.spacer{flex:1}
+
+.info{display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.info.show{display:flex}
+.chip{font-size:12px;background:#fff;border:1px solid #eadff0;border-radius:20px;padding:4px 12px;color:var(--text-secondary)}
+.chip b{color:var(--accent);font-weight:600}
+
+.progress{display:none;margin:14px 0}
+.progress.show{display:block}
+.bar{height:8px;background:#eadff0;border-radius:6px;overflow:hidden}
+.bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-light));transition:width .1s}
+.progress span{font-size:12px;color:var(--text-secondary)}
+
+.msg{display:none;margin:14px 0;padding:12px 14px;border-radius:9px;font-size:13px}
+.msg.show{display:block}
+.msg.err{background:#fde8e8;color:#a01818;border:1px solid #f5c6c6}
+.msg.warn{background:#fff6e6;color:#8a5a00;border:1px solid #f3e0b8}
+
+#score{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:18px 8px;overflow-x:auto}
+#score svg{display:block;margin:0 auto;max-width:100%;height:auto}
+.empty-hint{color:var(--text-secondary);font-size:13px;text-align:center;padding:40px 10px}
+
+footer.note{margin-top:22px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.7}
+
+@media print{
+  body{background:#fff}
+  .wrap{padding:0;max-width:none}
+  header.page,.drop,.controls,.info,.tip,.progress,footer.note,.back{display:none!important}
+  #score{box-shadow:none;padding:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div class="logo">🎤</div>
+    <div>
+      <h1>MP3 → Nuty</h1>
+      <p>Wgraj nagranie, a wysłucham melodię i zapiszę ją w kluczu basowym</p>
+    </div>
+    <a class="back" href="midi.html">MIDI →</a>
+  </header>
+
+  <div id="drop" class="drop">
+    <div class="big">🎧</div>
+    <div>Przeciągnij plik <strong>.mp3 / .wav / .m4a</strong> tutaj albo <strong>kliknij, aby wybrać</strong></div>
+    <small>Analiza dzwieku odbywa się w Twojej przeglądarce — nic nie jest wysyłane do sieci.</small>
+    <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg" hidden>
+  </div>
+
+  <div class="tip">
+    <b>Najlepiej działa z pojedynczym instrumentem grającym po jednym dźwięku</b> — np. sama linia basu, kontrabas, wiolonczela, zaśpiewana melodia.
+    Pełne piosenki (wiele instrumentów naraz) dadzą chaotyczny wynik — to ograniczenie wykrywania wysokości ze słuchu.
+  </div>
+
+  <div id="progress" class="progress">
+    <div class="bar"><i id="barfill"></i></div>
+    <span id="progtext">Analizuję dźwięk…</span>
+  </div>
+
+  <div id="msg" class="msg"></div>
+  <div id="info" class="info"></div>
+
+  <div id="controls" class="controls">
+    <label>Tempo:
+      <input id="bpm" type="number" min="40" max="240" value="120" style="width:62px"> BPM
+    </label>
+    <label>Zakres:
+      <select id="range">
+        <option value="all">wszystkie dźwięki</option>
+        <option value="bass" selected>tylko niskie (≤ C4)</option>
+      </select>
+    </label>
+    <label>Czułość:
+      <select id="sens">
+        <option value="0.018">niska (mniej szumu)</option>
+        <option value="0.010" selected>średnia</option>
+        <option value="0.006">wysoka (więcej nut)</option>
+      </select>
+    </label>
+    <label>Metrum:
+      <input id="beats" type="number" min="1" max="12" value="4" style="width:52px"> /
+      <select id="beatval"><option>2</option><option selected>4</option><option>8</option></select>
+    </label>
+    <div class="spacer"></div>
+    <button id="play" class="btn ghost">▶ Odtwórz</button>
+    <button id="print" class="btn primary">⬇ Zapisz PDF / Drukuj</button>
+  </div>
+
+  <div id="score"><div class="empty-hint">Tu pojawią się nuty.</div></div>
+
+  <footer class="note">
+    Wysokości są wykrywane metodą autokorelacji; rytm jest kwantyzowany do ustawionego tempa.<br>
+    To zapis przybliżony — przy szybkich biegnikach lub niewyraźnym brzmieniu warto poprawić wynik w edytorze nut.
+  </footer>
+</div>
+
+<script src="js/notation.js"></script>
+<script>
+const { buildScore, renderScore, noteName } = window.Notation;
+const $=s=>document.querySelector(s);
+const drop=$('#drop'), fileIn=$('#file'), scoreBox=$('#score');
+const ctrls=$('#controls'), infoBox=$('#info'), msgBox=$('#msg');
+const prog=$('#progress'), barfill=$('#barfill'), progtext=$('#progtext');
+
+let detectedNotes=[];   // [{midi, t0, t1}] w sekundach
+let audioMeta=null;
+const DIVISION=480;
+
+function showMsg(t,k){ msgBox.className='msg show '+(k||'warn'); msgBox.textContent=t; }
+function clearMsg(){ msgBox.className='msg'; }
+
+drop.addEventListener('click',()=>fileIn.click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+fileIn.addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
+
+async function loadFile(file){
+  clearMsg();
+  prog.classList.add('show'); barfill.style.width='0%'; progtext.textContent='Wczytuję plik…';
+  try{
+    const buf=await file.arrayBuffer();
+    const actx=new (window.AudioContext||window.webkitAudioContext)();
+    progtext.textContent='Dekoduję audio…';
+    const audio=await actx.decodeAudioData(buf);
+    drop.querySelector('div:nth-child(2)').innerHTML='✓ Wczytano: <strong>'+file.name+'</strong> — kliknij, by zmienić';
+    await analyze(audio);
+    actx.close();
+  }catch(err){
+    prog.classList.remove('show');
+    showMsg('Nie udało się przetworzyć pliku: '+err.message+'. Spróbuj inny format (np. WAV/MP3).','err');
+    console.error(err);
+  }
+}
+
+/* ---------- DETEKCJA WYSOKOSCI (autokorelacja) ---------- */
+async function analyze(audio){
+  // miks do mono + downsampling do ~16 kHz
+  const TARGET_SR=16000;
+  const src=audio.getChannelData(0);
+  const ratio=audio.sampleRate/TARGET_SR;
+  const sr=TARGET_SR;
+  const len=Math.floor(src.length/ratio);
+  const mono=new Float32Array(len);
+  const chans=audio.numberOfChannels;
+  for(let i=0;i<len;i++){
+    const j=Math.floor(i*ratio);
+    let s=0; for(let c=0;c<chans;c++) s+=audio.getChannelData(c)[j]||0;
+    mono[i]=s/chans;
+  }
+
+  const FRAME=2048, HOP=512;
+  const minFreq=40, maxFreq=1000;
+  const minLag=Math.floor(sr/maxFreq), maxLag=Math.ceil(sr/minFreq);
+  const sensRms=parseFloat($('#sens').value);
+
+  const frames=[];   // {t, midi|null}
+  const nFrames=Math.floor((mono.length-FRAME)/HOP);
+  for(let fi=0; fi<nFrames; fi++){
+    const off=fi*HOP;
+    const f=autoCorr(mono, off, FRAME, sr, minLag, maxLag, sensRms);
+    const midi = f>0 ? Math.round(69+12*Math.log2(f/440)) : null;
+    frames.push({t: off/sr, midi: (midi!=null && midi>=24 && midi<=96)?midi:null});
+    if((fi & 31)===0){ barfill.style.width=Math.round(100*fi/nFrames)+'%'; progtext.textContent='Wykrywam dźwięki… '+Math.round(100*fi/nFrames)+'%'; await tick(); }
+  }
+
+  medianFilter(frames, 7);
+  detectedNotes = segment(frames, HOP/sr);
+  audioMeta = {dur: audio.duration, sr: audio.sampleRate, count: detectedNotes.length};
+  prog.classList.remove('show');
+  render();
+}
+
+function autoCorr(buf, off, SIZE, sr, minLag, maxLag, thr){
+  let rms=0;
+  for(let i=0;i<SIZE;i++){ const v=buf[off+i]; rms+=v*v; }
+  rms=Math.sqrt(rms/SIZE);
+  if(rms<thr) return -1;                 // za cicho = brak dźwięku
+  let best=-1, bestv=0;
+  for(let lag=minLag; lag<=maxLag; lag++){
+    let c=0;
+    for(let i=0;i<SIZE-lag;i++) c+=buf[off+i]*buf[off+i+lag];
+    if(c>bestv){ bestv=c; best=lag; }
+  }
+  if(best<=0) return -1;
+  // odrzuć słabe maksima (brak wyraźnej okresowości)
+  let c0=0; for(let i=0;i<SIZE;i++) c0+=buf[off+i]*buf[off+i];
+  if(bestv < 0.45*c0) return -1;
+  // interpolacja paraboliczna
+  if(best>minLag && best<maxLag){
+    const x1=corr(buf,off,SIZE,best-1), x2=bestv, x3=corr(buf,off,SIZE,best+1);
+    const a=(x1+x3-2*x2)/2, b=(x3-x1)/2;
+    if(a) best = best - b/(2*a);
+  }
+  return sr/best;
+}
+function corr(buf,off,SIZE,lag){ let c=0; for(let i=0;i<SIZE-lag;i++) c+=buf[off+i]*buf[off+i+lag]; return c; }
+
+function medianFilter(frames, w){
+  const half=(w-1)/2;
+  const out=frames.map((f,i)=>{
+    const win=[];
+    for(let k=-half;k<=half;k++){ const g=frames[i+k]; if(g&&g.midi!=null) win.push(g.midi); }
+    if(!win.length) return null;
+    win.sort((a,b)=>a-b);
+    return win[Math.floor(win.length/2)];
+  });
+  for(let i=0;i<frames.length;i++) frames[i].midi=out[i];
+}
+
+function segment(frames, frameDur){
+  const minDur=0.09;                     // odrzuć migawki < 90 ms
+  const notes=[]; let cur=null;
+  for(const fr of frames){
+    if(fr.midi==null){ if(cur){ notes.push(cur); cur=null; } continue; }
+    if(cur && cur.midi===fr.midi){ cur.t1=fr.t+frameDur; }
+    else { if(cur) notes.push(cur); cur={midi:fr.midi, t0:fr.t, t1:fr.t+frameDur}; }
+  }
+  if(cur) notes.push(cur);
+  // scal sąsiednie o tej samej wysokości z mikro-przerwą; odfiltruj zbyt krótkie
+  const merged=[];
+  for(const n of notes){
+    const p=merged[merged.length-1];
+    if(p && p.midi===n.midi && n.t0-p.t1<0.06){ p.t1=n.t1; }
+    else merged.push({...n});
+  }
+  return merged.filter(n=>n.t1-n.t0>=minDur);
+}
+
+const tick=()=>new Promise(r=>setTimeout(r,0));
+
+/* ---------- RENDER ---------- */
+function render(){
+  if(!detectedNotes.length){ scoreBox.innerHTML='<div class="empty-hint">Nie wykryto wyraźnej melodii. Spróbuj nagranie pojedynczego instrumentu albo zwiększ czułość.</div>'; ctrls.classList.add('show'); return; }
+  ctrls.classList.add('show'); infoBox.classList.add('show');
+  const bpm=Math.max(40,parseInt($('#bpm').value)||120);
+  const range=$('#range').value;
+  const ticksPerSec=DIVISION*bpm/60;
+  const t0=detectedNotes[0].t0;
+
+  let notes=detectedNotes.map(n=>({
+    midi:n.midi,
+    start:Math.round((n.t0-t0)*ticksPerSec),
+    dur:Math.max(1,Math.round((n.t1-n.t0)*ticksPerSec))
+  }));
+  if(range==='bass') notes=notes.filter(n=>n.midi<=60);
+
+  const meta={beats:Math.max(1,parseInt($('#beats').value)||4), beatval:parseInt($('#beatval').value)||4};
+  if(!notes.length){ scoreBox.innerHTML='<div class="empty-hint">Brak nut w tym zakresie. Zmień zakres lub czułość.</div>'; return; }
+
+  const elements=buildScore(notes, DIVISION);
+  scoreBox.innerHTML=''; scoreBox.appendChild(renderScore(elements, meta));
+
+  const lo=Math.min(...notes.map(n=>n.midi)), hi=Math.max(...notes.map(n=>n.midi));
+  infoBox.innerHTML=
+    chip('Długość', audioMeta.dur.toFixed(1)+' s')+
+    chip('Wykryto nut', detectedNotes.length)+
+    chip('W zapisie', notes.length)+
+    chip('Zakres', noteName(lo)+'–'+noteName(hi))+
+    chip('Tempo', bpm+' BPM');
+}
+function chip(k,v){return `<span class="chip">${k}: <b>${v}</b></span>`;}
+
+['bpm','range','sens','beats','beatval'].forEach(id=>$('#'+id).addEventListener('change',()=>{ if(id==='sens'){ showMsg('Zmiana czułości wymaga ponownego wczytania pliku.','warn'); } else render(); }));
+$('#print').addEventListener('click',()=>window.print());
+
+/* ---------- ODTWARZANIE ---------- */
+let pctx=null, playing=false, voices=[], stopT=null;
+$('#play').addEventListener('click',function(){
+  if(playing){ stopPlay(); return; }
+  if(!detectedNotes.length) return;
+  pctx=pctx||new (window.AudioContext||window.webkitAudioContext)();
+  const range=$('#range').value;
+  const base=pctx.currentTime+0.05, t0=detectedNotes[0].t0;
+  let maxEnd=0;
+  for(const n of detectedNotes){
+    if(range==='bass' && n.midi>60) continue;
+    const st=base+(n.t0-t0), dur=Math.max(0.12,n.t1-n.t0);
+    const osc=pctx.createOscillator(), g=pctx.createGain();
+    osc.type='triangle'; osc.frequency.value=440*Math.pow(2,(n.midi-69)/12);
+    g.gain.setValueAtTime(0.0001,st);
+    g.gain.exponentialRampToValueAtTime(0.22,st+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,st+dur);
+    osc.connect(g); g.connect(pctx.destination);
+    osc.start(st); osc.stop(st+dur+0.05); voices.push(osc);
+    maxEnd=Math.max(maxEnd,st+dur);
+  }
+  playing=true; this.textContent='■ Zatrzymaj';
+  stopT=setTimeout(stopPlay,(maxEnd-pctx.currentTime+0.2)*1000);
+});
+function stopPlay(){
+  playing=false; $('#play').textContent='▶ Odtwórz';
+  for(const v of voices){ try{v.stop();}catch(e){} } voices=[];
+  if(stopT){ clearTimeout(stopT); stopT=null; }
+}
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
