@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7b2d8e">
+<title>MIDI → Nuty (klucz basowy)</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-page:#f5f4f7; --accent:#7b2d8e; --accent-light:#9b4dba; --accent-subtle:#f3eaf6;
+  --text-primary:#2c2637; --text-secondary:#8a8494; --surface:#faf9fc; --danger:#cc0000;
+  --radius:10px; --shadow-md:0 4px 12px rgba(90,50,120,0.10); --shadow-sm:0 1px 3px rgba(90,50,120,0.06);
+  --ink:#1a1a2e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 18px 80px}
+header.page{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+header.page .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:var(--shadow-md)}
+header.page h1{font-size:20px;font-weight:600;margin:0}
+header.page p{margin:2px 0 0;font-size:13px;color:var(--text-secondary)}
+.back{margin-left:auto;font-size:13px;color:var(--accent);text-decoration:none;padding:8px 12px;border-radius:8px}
+.back:hover{background:var(--accent-subtle)}
+
+.drop{border:2px dashed #d4c6dd;border-radius:var(--radius);background:var(--surface);padding:34px 20px;text-align:center;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-subtle)}
+.drop .big{font-size:34px;margin-bottom:8px}
+.drop strong{color:var(--accent)}
+.drop small{display:block;margin-top:6px;color:var(--text-secondary)}
+
+.controls{display:none;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:18px 0;padding:14px 16px;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.controls.show{display:flex}
+.controls label{font-size:13px;display:flex;align-items:center;gap:6px;color:var(--text-primary)}
+.controls select,.controls input[type=number]{font:inherit;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:7px;background:#fff}
+.btn{font:inherit;font-size:13px;font-weight:500;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-light)}
+.btn.ghost{background:var(--accent-subtle);color:var(--accent)}
+.btn.ghost:hover{background:#e9d9f0}
+.btn:disabled{opacity:.45;cursor:default}
+.spacer{flex:1}
+
+.info{display:none;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.info.show{display:flex}
+.chip{font-size:12px;background:#fff;border:1px solid #eadff0;border-radius:20px;padding:4px 12px;color:var(--text-secondary)}
+.chip b{color:var(--accent);font-weight:600}
+
+.msg{display:none;margin:14px 0;padding:12px 14px;border-radius:9px;font-size:13px}
+.msg.show{display:block}
+.msg.err{background:#fde8e8;color:#a01818;border:1px solid #f5c6c6}
+.msg.warn{background:#fff6e6;color:#8a5a00;border:1px solid #f3e0b8}
+
+#score{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:18px 8px;overflow-x:auto}
+#score svg{display:block;margin:0 auto;max-width:100%;height:auto}
+.empty-hint{color:var(--text-secondary);font-size:13px;text-align:center;padding:40px 10px}
+
+footer.note{margin-top:22px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.7}
+
+@media print{
+  body{background:#fff}
+  .wrap{padding:0;max-width:none}
+  header.page,.drop,.controls,.info,footer.note,.back{display:none!important}
+  #score{box-shadow:none;padding:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div class="logo">𝄢</div>
+    <div>
+      <h1>MIDI → Nuty</h1>
+      <p>Wgraj plik MIDI, a zapiszę go w kluczu basowym</p>
+    </div>
+    <a class="back" href="audio.html">MP3 →</a>
+    <a class="back" href="index.html">← Graphe</a>
+  </header>
+
+  <div id="drop" class="drop">
+    <div class="big">🎹</div>
+    <div>Przeciągnij plik <strong>.mid</strong> tutaj albo <strong>kliknij, aby wybrać</strong></div>
+    <small>Wszystko liczy się w Twojej przeglądarce — nic nie jest wysyłane do sieci.</small>
+    <input id="file" type="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+  </div>
+
+  <div id="msg" class="msg"></div>
+
+  <div id="info" class="info"></div>
+
+  <div id="controls" class="controls">
+    <label>Ścieżka:
+      <select id="track"></select>
+    </label>
+    <label>Klucz:
+      <select id="clef">
+        <option value="auto" selected>auto (dobierz)</option>
+        <option value="treble">wiolinowy</option>
+        <option value="alto">altowy</option>
+        <option value="tenor">tenorowy</option>
+        <option value="bass">basowy</option>
+      </select>
+    </label>
+    <label>Metrum:
+      <input id="beats" type="number" min="1" max="12" value="4" style="width:52px"> /
+      <select id="beatval">
+        <option>2</option><option selected>4</option><option>8</option>
+      </select>
+    </label>
+    <div class="spacer"></div>
+    <button id="play" class="btn ghost">▶ Odtwórz</button>
+    <button id="print" class="btn primary">⬇ Zapisz PDF / Drukuj</button>
+  </div>
+
+  <div id="score"><div class="empty-hint">Tu pojawią się nuty.</div></div>
+
+  <footer class="note">
+    Zapis jest automatyczny — rytm jest kwantyzowany, a wysokości zaokrąglane do najbliższego dźwięku.<br>
+    Złożone utwory (wiele głosów, triole) mogą wymagać ręcznej korekty w edytorze nut.
+  </footer>
+</div>
+
+<script src="js/notation.js"></script>
+<script>
+const { buildScore, renderScore } = window.Notation;
+
+/* ============================================================
+   1. PARSER STANDARD MIDI FILE (SMF 0/1) — bez zależności
+   ============================================================ */
+function parseMidi(buffer){
+  const dv = new DataView(buffer);
+  let p = 0;
+  const u8 = ()=>dv.getUint8(p++);
+  const u16 = ()=>{const v=dv.getUint16(p);p+=2;return v;};
+  const u32 = ()=>{const v=dv.getUint32(p);p+=4;return v;};
+  const str = n=>{let s='';for(let i=0;i<n;i++)s+=String.fromCharCode(dv.getUint8(p++));return s;};
+  const vlq = ()=>{let v=0,b;do{b=dv.getUint8(p++);v=(v<<7)|(b&0x7f);}while(b&0x80);return v;};
+
+  if(str(4)!=='MThd') throw new Error('To nie jest plik MIDI (brak nagłówka MThd).');
+  u32(); // header length (6)
+  const format = u16();
+  const ntrks = u16();
+  const division = u16();
+  if(division & 0x8000) throw new Error('Pliki MIDI w formacie SMPTE nie są obsługiwane.');
+
+  const tracks = [];
+  let tempo = 500000;        // µs / ćwierćnuta (120 BPM)
+  let timeSig = {num:4, den:4};
+
+  for(let t=0;t<ntrks;t++){
+    if(p>=dv.byteLength) break;
+    if(str(4)!=='MTrk'){ // pomiń nieznany chunk
+      const len=u32(); p+=len; continue;
+    }
+    const len = u32();
+    const end = p+len;
+    let abs = 0, status = 0;
+    const events = [];
+    while(p < end){
+      abs += vlq();
+      let b = dv.getUint8(p);
+      if(b & 0x80){ status = b; p++; } // nowy status
+      else { b = status; }             // running status
+      const hi = b & 0xf0;
+
+      if(b === 0xff){               // meta
+        const type = u8();
+        const l = vlq();
+        if(type === 0x51 && l===3){ tempo = (dv.getUint8(p)<<16)|(dv.getUint8(p+1)<<8)|dv.getUint8(p+2); }
+        else if(type === 0x58 && l>=2){ timeSig = {num:dv.getUint8(p), den:Math.pow(2,dv.getUint8(p+1))}; }
+        p += l;
+      } else if(b === 0xf0 || b === 0xf7){ // sysex
+        const l = vlq(); p += l;
+      } else if(hi === 0x90 || hi === 0x80){ // note on/off
+        const key = u8(), vel = u8();
+        events.push({abs, on:(hi===0x90 && vel>0), key, vel});
+      } else if(hi===0xc0 || hi===0xd0){ p+=1; }   // program / channel pressure (1 bajt)
+      else { p+=2; }                               // controller, pitch bend itd. (2 bajty)
+    }
+    p = end;
+    tracks.push(events);
+  }
+
+  // sparuj note-on / note-off -> nuty z czasem trwania
+  const trackNotes = tracks.map(events=>{
+    const open = {};   // key -> {abs,vel}
+    const notes = [];
+    for(const e of events){
+      if(e.on){ (open[e.key] ||= []).push(e.abs); }
+      else {
+        const st = open[e.key];
+        if(st && st.length){
+          const start = st.shift();
+          notes.push({midi:e.key, start, dur:Math.max(1,e.abs-start)});
+        }
+      }
+    }
+    return notes.sort((a,b)=>a.start-b.start || a.midi-b.midi);
+  });
+
+  return {format, division, tempo, timeSig, trackNotes};
+}
+
+/* ============================================================
+   2. UI / sterowanie
+   ============================================================ */
+const $=s=>document.querySelector(s);
+const drop=$('#drop'), fileIn=$('#file'), scoreBox=$('#score');
+const ctrls=$('#controls'), infoBox=$('#info'), msgBox=$('#msg');
+const trackSel=$('#track'), clefSel=$('#clef'), beatsIn=$('#beats'), beatvalSel=$('#beatval');
+let parsed=null, currentNotes=[];
+
+function showMsg(text,kind){ msgBox.className='msg show '+(kind||'warn'); msgBox.textContent=text; }
+function clearMsg(){ msgBox.className='msg'; }
+
+drop.addEventListener('click',()=>fileIn.click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+fileIn.addEventListener('change',e=>{if(e.target.files[0])loadFile(e.target.files[0]);});
+
+function loadFile(file){
+  clearMsg();
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      parsed=parseMidi(r.result);
+      setupTracks();
+      drop.querySelector('div:nth-child(2)').innerHTML='✓ Wczytano: <strong>'+file.name+'</strong> — kliknij, by zmienić';
+      render();
+    }catch(err){ showMsg('Nie udało się odczytać pliku: '+err.message,'err'); console.error(err); }
+  };
+  r.onerror=()=>showMsg('Błąd odczytu pliku.','err');
+  r.readAsArrayBuffer(file);
+}
+
+function setupTracks(){
+  trackSel.innerHTML='';
+  parsed.trackNotes.forEach((notes,i)=>{
+    if(!notes.length) return;
+    const o=document.createElement('option');
+    o.value=i; o.textContent=`Ścieżka ${i+1} (${notes.length} nut)`;
+    trackSel.appendChild(o);
+  });
+  // domyślnie ścieżka z największą liczbą nut (zwykle melodia/partia główna)
+  let best=0,bestN=-1;
+  parsed.trackNotes.forEach((notes,i)=>{
+    if(notes.length>bestN){bestN=notes.length;best=i;}
+  });
+  trackSel.value=best;
+  // metrum z pliku
+  beatsIn.value=parsed.timeSig.num;
+  beatvalSel.value=String([2,4,8].includes(parsed.timeSig.den)?parsed.timeSig.den:4);
+}
+
+function render(){
+  if(!parsed) return;
+  ctrls.classList.add('show'); infoBox.classList.add('show');
+  const ti=parseInt(trackSel.value)||0;
+  const notes=(parsed.trackNotes[ti]||[]).slice();   // wszystkie dźwięki, nic nie wycinamy
+  currentNotes=notes;
+
+  if(!notes.length){ scoreBox.innerHTML='<div class="empty-hint">Ta ścieżka nie ma nut. Wybierz inną.</div>'; return; }
+
+  const clef = clefSel.value==='auto' ? pickClef(notes) : clefSel.value;
+  const meta={beats:Math.max(1,parseInt(beatsIn.value)||4), beatval:parseInt(beatvalSel.value)||4, clef};
+  const elements=buildScore(notes, parsed.division);
+  scoreBox.innerHTML='';
+  scoreBox.appendChild(renderScore(elements, meta));
+
+  const bpm=Math.round(60000000/parsed.tempo);
+  const lo=Math.min(...notes.map(n=>n.midi)), hi=Math.max(...notes.map(n=>n.midi));
+  const CLEF_PL={treble:'wiolinowy',alto:'altowy',tenor:'tenorowy',bass:'basowy'};
+  infoBox.innerHTML=
+    chip('Format', 'SMF '+parsed.format)+
+    chip('Ścieżek', parsed.trackNotes.filter(t=>t.length).length)+
+    chip('Nut', notes.length)+
+    chip('Tempo', bpm+' BPM')+
+    chip('Zakres', noteName(lo)+'–'+noteName(hi))+
+    chip('Klucz', CLEF_PL[clef]+(clefSel.value==='auto'?' (auto)':''));
+  clearMsg();
+}
+function chip(k,v){return `<span class="chip">${k}: <b>${v}</b></span>`;}
+// dobierz klucz wg mediany wysokości (środki kluczy: bas D3=50, tenor A3=57, alt C4=60, wiol. B4=71)
+function pickClef(notes){
+  const ms=notes.map(n=>n.midi).sort((a,b)=>a-b);
+  const med=ms[Math.floor(ms.length/2)];
+  const C=[['bass',50],['tenor',57],['alto',60],['treble',71]];
+  let best='bass',bd=1e9;
+  for(const [name,ctr] of C){ const d=Math.abs(med-ctr); if(d<bd){bd=d;best=name;} }
+  return best;
+}
+function noteName(m){const N=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];return N[m%12]+(Math.floor(m/12)-1);}
+
+trackSel.addEventListener('change',render);
+clefSel.addEventListener('change',render);
+beatsIn.addEventListener('change',render);
+beatvalSel.addEventListener('change',render);
+$('#print').addEventListener('click',()=>window.print());
+
+/* --- odtwarzanie (Web Audio) --- */
+let actx=null, playing=false, timers=[];
+$('#play').addEventListener('click',function(){
+  if(playing){ stopPlay(); return; }
+  if(!currentNotes.length) return;
+  actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  const spq=parsed.tempo/1e6;                 // sekundy / ćwierćnuta
+  const t0=actx.currentTime+0.05;
+  let maxEnd=0;
+  const master=actx.createGain(); master.gain.value=0.0001; master.connect(actx.destination);
+  for(const n of currentNotes){
+    const start=t0 + (n.start/parsed.division)*spq;
+    const dur=Math.max(0.12,(n.dur/parsed.division)*spq);
+    const osc=actx.createOscillator(), g=actx.createGain();
+    osc.type='triangle'; osc.frequency.value=440*Math.pow(2,(n.midi-69)/12);
+    g.gain.setValueAtTime(0.0001,start);
+    g.gain.exponentialRampToValueAtTime(0.22,start+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+    osc.connect(g); g.connect(actx.destination);
+    osc.start(start); osc.stop(start+dur+0.05);
+    timers.push(osc);
+    maxEnd=Math.max(maxEnd,start+dur);
+  }
+  playing=true; this.textContent='■ Zatrzymaj';
+  timers.push(setTimeout(stopPlay,(maxEnd-actx.currentTime+0.2)*1000));
+});
+function stopPlay(){
+  playing=false; $('#play').textContent='▶ Odtwórz';
+  for(const t of timers){ try{ t.stop?t.stop():clearTimeout(t); }catch(e){} }
+  timers=[];
+}
+
+/* PWA */
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
