@@ -1,7 +1,8 @@
-const CACHE_NAME = 'notes-app-v1';
+const CACHE_NAME = 'notes-app-v2';
 const ASSETS = [
     '/',
     '/index.html',
+    '/midi.html',
     '/css/style.css',
     '/js/quotes.js',
     '/js/storage.js',
