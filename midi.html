@@ -96,10 +96,13 @@ footer.note{margin-top:22px;font-size:12px;color:var(--text-secondary);text-alig
     <label>Ścieżka:
       <select id="track"></select>
     </label>
-    <label>Zakres:
-      <select id="range">
-        <option value="all">wszystkie dźwięki</option>
-        <option value="bass" selected>tylko niskie (≤ C4)</option>
+    <label>Klucz:
+      <select id="clef">
+        <option value="auto" selected>auto (dobierz)</option>
+        <option value="treble">wiolinowy</option>
+        <option value="alto">altowy</option>
+        <option value="tenor">tenorowy</option>
+        <option value="bass">basowy</option>
       </select>
     </label>
     <label>Metrum:
@@ -208,7 +211,7 @@ function parseMidi(buffer){
 const $=s=>document.querySelector(s);
 const drop=$('#drop'), fileIn=$('#file'), scoreBox=$('#score');
 const ctrls=$('#controls'), infoBox=$('#info'), msgBox=$('#msg');
-const trackSel=$('#track'), rangeSel=$('#range'), beatsIn=$('#beats'), beatvalSel=$('#beatval');
+const trackSel=$('#track'), clefSel=$('#clef'), beatsIn=$('#beats'), beatvalSel=$('#beatval');
 let parsed=null, currentNotes=[];
 
 function showMsg(text,kind){ msgBox.className='msg show '+(kind||'warn'); msgBox.textContent=text; }
@@ -243,12 +246,10 @@ function setupTracks(){
     o.value=i; o.textContent=`Ścieżka ${i+1} (${notes.length} nut)`;
     trackSel.appendChild(o);
   });
-  // domyślnie ścieżka z najniższą średnią wysokością (partia basu)
-  let best=0,bestAvg=999;
+  // domyślnie ścieżka z największą liczbą nut (zwykle melodia/partia główna)
+  let best=0,bestN=-1;
   parsed.trackNotes.forEach((notes,i)=>{
-    if(!notes.length) return;
-    const avg=notes.reduce((s,n)=>s+n.midi,0)/notes.length;
-    if(avg<bestAvg){bestAvg=avg;best=i;}
+    if(notes.length>bestN){bestN=notes.length;best=i;}
   });
   trackSel.value=best;
   // metrum z pliku
@@ -260,34 +261,43 @@ function render(){
   if(!parsed) return;
   ctrls.classList.add('show'); infoBox.classList.add('show');
   const ti=parseInt(trackSel.value)||0;
-  let notes=(parsed.trackNotes[ti]||[]).slice();
-  if(rangeSel.value==='bass') notes=notes.filter(n=>n.midi<=60);  // ≤ C4
+  const notes=(parsed.trackNotes[ti]||[]).slice();   // wszystkie dźwięki, nic nie wycinamy
   currentNotes=notes;
 
-  if(!notes.length){ scoreBox.innerHTML='<div class="empty-hint">Brak nut w tym zakresie. Zmień ścieżkę lub zakres.</div>'; return; }
+  if(!notes.length){ scoreBox.innerHTML='<div class="empty-hint">Ta ścieżka nie ma nut. Wybierz inną.</div>'; return; }
 
-  const meta={beats:Math.max(1,parseInt(beatsIn.value)||4), beatval:parseInt(beatvalSel.value)||4};
-  const elements=buildScore(notes, parsed.division, {});
+  const clef = clefSel.value==='auto' ? pickClef(notes) : clefSel.value;
+  const meta={beats:Math.max(1,parseInt(beatsIn.value)||4), beatval:parseInt(beatvalSel.value)||4, clef};
+  const elements=buildScore(notes, parsed.division);
   scoreBox.innerHTML='';
   scoreBox.appendChild(renderScore(elements, meta));
 
   const bpm=Math.round(60000000/parsed.tempo);
   const lo=Math.min(...notes.map(n=>n.midi)), hi=Math.max(...notes.map(n=>n.midi));
+  const CLEF_PL={treble:'wiolinowy',alto:'altowy',tenor:'tenorowy',bass:'basowy'};
   infoBox.innerHTML=
     chip('Format', 'SMF '+parsed.format)+
     chip('Ścieżek', parsed.trackNotes.filter(t=>t.length).length)+
     chip('Nut', notes.length)+
     chip('Tempo', bpm+' BPM')+
-    chip('Zakres', noteName(lo)+'–'+noteName(hi));
-  const highCount=(parsed.trackNotes[ti]||[]).filter(n=>n.midi>72).length;
-  if(rangeSel.value==='all' && highCount>4) showMsg('Sporo wysokich dźwięków — w kluczu basowym wymagają wielu linii dodanych. Rozważ zakres „tylko niskie".','warn');
-  else clearMsg();
+    chip('Zakres', noteName(lo)+'–'+noteName(hi))+
+    chip('Klucz', CLEF_PL[clef]+(clefSel.value==='auto'?' (auto)':''));
+  clearMsg();
 }
 function chip(k,v){return `<span class="chip">${k}: <b>${v}</b></span>`;}
+// dobierz klucz wg mediany wysokości (środki kluczy: bas D3=50, tenor A3=57, alt C4=60, wiol. B4=71)
+function pickClef(notes){
+  const ms=notes.map(n=>n.midi).sort((a,b)=>a-b);
+  const med=ms[Math.floor(ms.length/2)];
+  const C=[['bass',50],['tenor',57],['alto',60],['treble',71]];
+  let best='bass',bd=1e9;
+  for(const [name,ctr] of C){ const d=Math.abs(med-ctr); if(d<bd){bd=d;best=name;} }
+  return best;
+}
 function noteName(m){const N=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];return N[m%12]+(Math.floor(m/12)-1);}
 
 trackSel.addEventListener('change',render);
-rangeSel.addEventListener('change',render);
+clefSel.addEventListener('change',render);
 beatsIn.addEventListener('change',render);
 beatvalSel.addEventListener('change',render);
 $('#print').addEventListener('click',()=>window.print());

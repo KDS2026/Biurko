@@ -84,6 +84,12 @@
     const sysGap=7.2*S, topPad=4*S, botPad=3*S;
     const measureBeats = meta.beats*(4/meta.beatval);
 
+    // konfiguracja klucza: dv srodkowej (3.) linii pieciolinii
+    const CLEF_MID = {treble:34, alto:28, tenor:26, bass:22};   // B4 / C4 / A3 / D3
+    const CLEF_NAME = {treble:'wiolinowy', alto:'altowy', tenor:'tenorowy', bass:'basowy'};
+    const clef = CLEF_MID[meta.clef]!=null ? meta.clef : 'bass';
+    const DV_MID = CLEF_MID[clef], DV_TOP = DV_MID+4, DV_BOT = DV_MID-4;
+
     const minElW=44;
     const systems=[]; let cur=[]; let x=marginL+clefW; let beatPos=0;
     for(const e of elements){
@@ -103,8 +109,10 @@
       const y0 = topPad + si*sysGap;
       const lineY = i => y0 + i*S;
       for(let i=0;i<5;i++) svg.appendChild(el('line',{x1:marginL,y1:lineY(i),x2:innerW-marginR,y2:lineY(i),stroke:'#333','stroke-width':1}));
-      drawBassClef(svg, marginL+10, y0, S);
+      drawClef(svg, marginL+8, y0, S, clef);
       if(si===0){
+        const lbl=el('text',{x:marginL+2,y:y0-1.7*S,'font-size':1.05*S,fill:'#7b2d8e','font-weight':500});
+        lbl.textContent='klucz '+CLEF_NAME[clef]; svg.appendChild(lbl);
         const tx=marginL+clefW-16;
         const t1=el('text',{x:tx,y:y0+1.45*S,'font-size':1.9*S,'font-weight':600,'text-anchor':'middle',fill:'#222'});t1.textContent=meta.beats;svg.appendChild(t1);
         const t2=el('text',{x:tx,y:y0+3.4*S,'font-size':1.9*S,'font-weight':600,'text-anchor':'middle',fill:'#222'});t2.textContent=meta.beatval;svg.appendChild(t2);
@@ -174,8 +182,14 @@
       if(e.dot) svg.appendChild(el('circle',{cx:cx+S,cy:yMid,r:1.7,fill:'#1a1a2e'}));
     }
 
+    function drawClef(svg, x, y0, S, clef){
+      if(clef==='bass') drawBassClef(svg, x, y0, S);
+      else if(clef==='treble') drawTrebleClef(svg, x, y0, S);
+      else drawCClef(svg, x, y0, S, clef);   // alto / tenor
+    }
+
     function drawBassClef(svg, x, y0, S){
-      const cy=y0+S, cx=x+0.7*S;
+      const cy=y0+S, cx=x+0.7*S;             // linia F (4. od dolu)
       svg.appendChild(el('circle',{cx:cx,cy:cy,r:0.55*S,fill:'#1a1a2e'}));
       const d=`M${cx},${cy} `+
         `C ${cx},${cy-1.1*S} ${cx+1.9*S},${cy-1.5*S} ${cx+1.7*S},${cy-0.1*S} `+
@@ -183,6 +197,47 @@
       svg.appendChild(el('path',{d:d,fill:'none',stroke:'#1a1a2e','stroke-width':0.42*S,'stroke-linecap':'round'}));
       svg.appendChild(el('circle',{cx:cx+2.3*S,cy:cy-0.5*S,r:0.22*S,fill:'#1a1a2e'}));
       svg.appendChild(el('circle',{cx:cx+2.3*S,cy:cy+0.5*S,r:0.22*S,fill:'#1a1a2e'}));
+    }
+
+    function drawTrebleClef(svg, x, y0, S){
+      const cx=x+1.25*S, gY=y0+3*S;          // zawijas wokol linii G (2. od dolu)
+      // spirala (oko klucza)
+      let d='';
+      const N=44, turns=2.05;
+      for(let i=0;i<=N;i++){
+        const th=Math.PI/2 + i/N*turns*2*Math.PI;
+        const r=1.55*S*(1 - i/N*0.86);
+        const px=cx + r*Math.cos(th), py=gY + r*Math.sin(th);
+        d+=(i?'L':'M')+px.toFixed(1)+','+py.toFixed(1)+' ';
+      }
+      svg.appendChild(el('path',{d:d,fill:'none',stroke:'#1a1a2e','stroke-width':0.34*S,'stroke-linecap':'round','stroke-linejoin':'round'}));
+      // trzon: w gore z haczykiem, w dol pod pieciolinie
+      const stem=`M${cx+1.5*S},${gY-0.1*S} `+
+        `C ${cx+1.9*S},${gY-2.4*S} ${cx-0.2*S},${gY-3.4*S} ${cx-0.4*S},${gY-2.0*S} `+   // gorny hak
+        `M${(cx+1.5*S).toFixed(1)},${gY.toFixed(1)} `+
+        `L ${(cx+1.5*S).toFixed(1)},${(gY+2.7*S).toFixed(1)}`;                            // trzon w dol
+      svg.appendChild(el('path',{d:stem,fill:'none',stroke:'#1a1a2e','stroke-width':0.34*S,'stroke-linecap':'round'}));
+      svg.appendChild(el('circle',{cx:cx+1.5*S,cy:gY+3.0*S,r:0.28*S,fill:'#1a1a2e'}));   // kropka u dolu
+    }
+
+    function drawCClef(svg, x, y0, S, clef){
+      // klucz C: srodek na linii z dzwiekiem C4 (dv=28)
+      const cY=yForDv(28, y0), cx=x+0.4*S;
+      // dwie pionowe belki po lewej
+      svg.appendChild(el('rect',{x:cx,y:cY-2*S,width:0.42*S,height:4*S,fill:'#1a1a2e'}));
+      svg.appendChild(el('rect',{x:cx+0.6*S,y:cY-2*S,width:0.22*S,height:4*S,fill:'#1a1a2e'}));
+      // dwa luki zwrocone do srodka (gorny i dolny)
+      const bx=cx+0.85*S;
+      const lobe=(up)=>{
+        const s=up?-1:1;
+        return `M${bx},${(cY+s*0.15*S).toFixed(1)} `+
+          `C ${bx+1.7*S},${(cY+s*0.1*S).toFixed(1)} ${bx+1.8*S},${(cY+s*1.05*S).toFixed(1)} ${bx+1.0*S},${(cY+s*1.55*S).toFixed(1)} `+
+          `C ${bx+0.4*S},${(cY+s*1.9*S).toFixed(1)} ${bx+1.4*S},${(cY+s*2.0*S).toFixed(1)} ${bx+1.55*S},${(cY+s*1.2*S).toFixed(1)} `+
+          `C ${bx+1.75*S},${(cY+s*0.2*S).toFixed(1)} ${bx+0.9*S},${(cY+s*0.1*S).toFixed(1)} ${bx},${(cY+s*0.15*S).toFixed(1)} Z`;
+      };
+      svg.appendChild(el('path',{d:lobe(true), fill:'#1a1a2e'}));
+      svg.appendChild(el('path',{d:lobe(false),fill:'#1a1a2e'}));
+      svg.appendChild(el('circle',{cx:bx+0.2*S,cy:cY,r:0.2*S,fill:'#1a1a2e'}));
     }
   }
 

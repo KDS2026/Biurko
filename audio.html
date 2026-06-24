@@ -112,10 +112,13 @@ footer.note{margin-top:22px;font-size:12px;color:var(--text-secondary);text-alig
     <label>Tempo:
       <input id="bpm" type="number" min="40" max="240" value="120" style="width:62px"> BPM
     </label>
-    <label>Zakres:
-      <select id="range">
-        <option value="all">wszystkie dźwięki</option>
-        <option value="bass" selected>tylko niskie (≤ C4)</option>
+    <label>Klucz:
+      <select id="clef">
+        <option value="auto" selected>auto (dobierz)</option>
+        <option value="treble">wiolinowy</option>
+        <option value="alto">altowy</option>
+        <option value="tenor">tenorowy</option>
+        <option value="bass">basowy</option>
       </select>
     </label>
     <label>Czułość:
@@ -282,34 +285,42 @@ function render(){
   if(!detectedNotes.length){ scoreBox.innerHTML='<div class="empty-hint">Nie wykryto wyraźnej melodii. Spróbuj nagranie pojedynczego instrumentu albo zwiększ czułość.</div>'; ctrls.classList.add('show'); return; }
   ctrls.classList.add('show'); infoBox.classList.add('show');
   const bpm=Math.max(40,parseInt($('#bpm').value)||120);
-  const range=$('#range').value;
   const ticksPerSec=DIVISION*bpm/60;
   const t0=detectedNotes[0].t0;
 
-  let notes=detectedNotes.map(n=>({
+  const notes=detectedNotes.map(n=>({       // wszystkie dźwięki, nic nie wycinamy
     midi:n.midi,
     start:Math.round((n.t0-t0)*ticksPerSec),
     dur:Math.max(1,Math.round((n.t1-n.t0)*ticksPerSec))
   }));
-  if(range==='bass') notes=notes.filter(n=>n.midi<=60);
 
-  const meta={beats:Math.max(1,parseInt($('#beats').value)||4), beatval:parseInt($('#beatval').value)||4};
-  if(!notes.length){ scoreBox.innerHTML='<div class="empty-hint">Brak nut w tym zakresie. Zmień zakres lub czułość.</div>'; return; }
+  const clef = $('#clef').value==='auto' ? pickClef(notes) : $('#clef').value;
+  const meta={beats:Math.max(1,parseInt($('#beats').value)||4), beatval:parseInt($('#beatval').value)||4, clef};
 
   const elements=buildScore(notes, DIVISION);
   scoreBox.innerHTML=''; scoreBox.appendChild(renderScore(elements, meta));
 
   const lo=Math.min(...notes.map(n=>n.midi)), hi=Math.max(...notes.map(n=>n.midi));
+  const CLEF_PL={treble:'wiolinowy',alto:'altowy',tenor:'tenorowy',bass:'basowy'};
   infoBox.innerHTML=
     chip('Długość', audioMeta.dur.toFixed(1)+' s')+
     chip('Wykryto nut', detectedNotes.length)+
-    chip('W zapisie', notes.length)+
     chip('Zakres', noteName(lo)+'–'+noteName(hi))+
-    chip('Tempo', bpm+' BPM');
+    chip('Tempo', bpm+' BPM')+
+    chip('Klucz', CLEF_PL[clef]+($('#clef').value==='auto'?' (auto)':''));
 }
 function chip(k,v){return `<span class="chip">${k}: <b>${v}</b></span>`;}
+function pickClef(notes){
+  if(!notes.length) return 'bass';
+  const ms=notes.map(n=>n.midi).sort((a,b)=>a-b);
+  const med=ms[Math.floor(ms.length/2)];
+  const C=[['bass',50],['tenor',57],['alto',60],['treble',71]];
+  let best='bass',bd=1e9;
+  for(const [name,ctr] of C){ const d=Math.abs(med-ctr); if(d<bd){bd=d;best=name;} }
+  return best;
+}
 
-['bpm','range','sens','beats','beatval'].forEach(id=>$('#'+id).addEventListener('change',()=>{ if(id==='sens'){ showMsg('Zmiana czułości wymaga ponownego wczytania pliku.','warn'); } else render(); }));
+['bpm','clef','sens','beats','beatval'].forEach(id=>$('#'+id).addEventListener('change',()=>{ if(id==='sens'){ showMsg('Zmiana czułości wymaga ponownego wczytania pliku.','warn'); } else render(); }));
 $('#print').addEventListener('click',()=>window.print());
 
 /* ---------- ODTWARZANIE ---------- */
@@ -318,11 +329,9 @@ $('#play').addEventListener('click',function(){
   if(playing){ stopPlay(); return; }
   if(!detectedNotes.length) return;
   pctx=pctx||new (window.AudioContext||window.webkitAudioContext)();
-  const range=$('#range').value;
   const base=pctx.currentTime+0.05, t0=detectedNotes[0].t0;
   let maxEnd=0;
   for(const n of detectedNotes){
-    if(range==='bass' && n.midi>60) continue;
     const st=base+(n.t0-t0), dur=Math.max(0.12,n.t1-n.t0);
     const osc=pctx.createOscillator(), g=pctx.createGain();
     osc.type='triangle'; osc.frequency.value=440*Math.pow(2,(n.midi-69)/12);
