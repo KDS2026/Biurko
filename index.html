@@ -19,12 +19,22 @@
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-header">
             <h2>Graphe</h2>
-            <button id="btn-new-note" class="btn-icon" title="Nowa notatka">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-            </button>
+            <div class="sidebar-header-actions">
+                <button id="btn-orgs" class="btn-icon" title="Organizacje / Przystanek Konstytucja">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 00-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 010 7.75"></path>
+                    </svg>
+                </button>
+                <button id="btn-new-note" class="btn-icon" title="Nowa notatka">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
         </div>
         <div id="notes-list" class="notes-list"></div>
     </aside>
@@ -140,10 +150,81 @@
         </div>
     </div>
 
+    <!-- Organizations / outreach tracker panel -->
+    <div id="orgs-panel" class="orgs-panel hidden">
+        <div class="orgs-panel-content">
+            <div class="orgs-header">
+                <div class="orgs-header-title">
+                    <h2>Organizacje – Przystanek Konstytucja</h2>
+                    <input type="text" id="orgs-campaign" class="orgs-campaign-input" placeholder="Nazwa kampanii / przystanku">
+                </div>
+                <div class="orgs-header-actions">
+                    <button id="btn-add-org" class="btn-primary">+ Dodaj organizację</button>
+                    <button id="btn-close-orgs" class="btn-icon" title="Zamknij">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="orgs-list" class="orgs-list"></div>
+        </div>
+    </div>
+
+    <!-- Organization edit modal -->
+    <div id="org-edit-modal" class="modal hidden">
+        <div class="modal-content org-edit-content">
+            <h3 id="org-edit-title">Nowa organizacja</h3>
+            <label class="org-label" for="org-input-name">Nazwa organizacji</label>
+            <input type="text" id="org-input-name" class="org-input">
+
+            <label class="org-label" for="org-input-role">Rola w wydarzeniu</label>
+            <input type="text" id="org-input-role" class="org-input" placeholder="np. wolontariusze do animacji namiotów">
+
+            <div class="org-input-row">
+                <div>
+                    <label class="org-label" for="org-input-contact">Osoba kontaktowa</label>
+                    <input type="text" id="org-input-contact" class="org-input">
+                </div>
+                <div>
+                    <label class="org-label" for="org-input-status">Status</label>
+                    <select id="org-input-status" class="org-input"></select>
+                </div>
+            </div>
+
+            <div class="org-input-row">
+                <div>
+                    <label class="org-label" for="org-input-email">E-mail</label>
+                    <input type="email" id="org-input-email" class="org-input">
+                </div>
+                <div>
+                    <label class="org-label" for="org-input-phone">Telefon</label>
+                    <input type="text" id="org-input-phone" class="org-input">
+                </div>
+            </div>
+
+            <label class="org-label" for="org-input-confidence">Pewność kontaktu</label>
+            <select id="org-input-confidence" class="org-input">
+                <option value="high">Zweryfikowany</option>
+                <option value="low">Niepewny / do potwierdzenia</option>
+            </select>
+
+            <label class="org-label" for="org-input-notes">Notatki / historia komunikacji</label>
+            <textarea id="org-input-notes" class="org-input" rows="4"></textarea>
+
+            <div class="modal-actions">
+                <button id="btn-cancel-org" class="btn-secondary">Anuluj</button>
+                <button id="btn-save-org" class="btn-primary">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/quotes.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/drawing.js"></script>
     <script src="js/recognition.js"></script>
+    <script src="js/orgs.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
  * Storage layer using IndexedDB for notes and handwriting learning data.
  */
 const DB_NAME = 'NotesAppDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class NotesStorage {
     constructor() {
@@ -28,6 +28,11 @@ class NotesStorage {
                 if (!db.objectStoreNames.contains('corrections')) {
                     const corrStore = db.createObjectStore('corrections', { keyPath: 'id', autoIncrement: true });
                     corrStore.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+
+                if (!db.objectStoreNames.contains('orgs')) {
+                    const orgsStore = db.createObjectStore('orgs', { keyPath: 'id' });
+                    orgsStore.createIndex('campaign', 'campaign', { unique: false });
                 }
             };
 
@@ -131,6 +136,38 @@ class NotesStorage {
             const request = store.getAll();
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    // ===== Outreach organizations CRUD =====
+
+    async saveOrg(org) {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction('orgs', 'readwrite');
+            const store = tx.objectStore('orgs');
+            store.put(org);
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async getAllOrgs() {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction('orgs', 'readonly');
+            const store = tx.objectStore('orgs');
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    async deleteOrg(id) {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction('orgs', 'readwrite');
+            const store = tx.objectStore('orgs');
+            store.delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
         });
     }
 }

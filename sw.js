@@ -1,4 +1,4 @@
-const CACHE_NAME = 'notes-app-v1';
+const CACHE_NAME = 'notes-app-v2';
 const ASSETS = [
     '/',
     '/index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
     '/js/storage.js',
     '/js/drawing.js',
     '/js/recognition.js',
+    '/js/orgs.js',
     '/js/app.js',
     '/manifest.json',
 ];

@@ -26,6 +26,10 @@
     // ===== Initialize Storage =====
     await storage.init();
 
+    // ===== Initialize Outreach Organizations Panel =====
+    const orgsPanel = initOrgsPanel(storage);
+    await orgsPanel.seedIfEmpty();
+
     // ===== Initialize Drawing Engine =====
     const drawingEngine = new DrawingEngine(canvas);
 
